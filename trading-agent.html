@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXIS: BTC Adaptive Trend + Mean-Reversion Agent</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Crect width='56' height='56' fill='%23000'/%3E%3Cline x1='10' y1='48' x2='42' y2='14' stroke='%232BC4F0' stroke-width='7'/%3E%3Cpolygon points='48,6 36,12 40,22' fill='%232BC4F0'/%3E%3Cline x1='44' y1='18' x2='14' y2='44' stroke='%232BC4F0' stroke-width='7'/%3E%3Cpolygon points='8,50 18,42 14,36' fill='%232BC4F0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0A0C;
+    --card:#15151A;
+    --card-2:#1F1F26;
+    --border:#26262E;
+    --text:#F5F5F7;
+    --muted:#8A8A93;
+    --green:#34D399;
+    --red:#F87171;
+    --white:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#000;color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .app{max-width:480px;margin:0 auto;background:var(--bg);min-height:100vh;position:relative;}
+
+  main{padding:18px 16px 110px;}
+
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;animation:fadein .2s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 16px;}
+  .brand{display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--green);}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin:0;}
+  .priceblock{text-align:right;}
+  .priceblock .p{font-size:16px;font-weight:700;}
+  .priceblock .c{font-size:11.5px;font-weight:600;}
+  .priceblock .c.up{color:var(--green);}
+  .priceblock .c.down{color:var(--red);}
+
+  .card{background:var(--card);border-radius:22px;padding:20px;margin-bottom:14px;}
+  .card-row{display:flex;gap:12px;margin-bottom:14px;}
+  .card-row .card{flex:1;margin-bottom:0;padding:16px;}
+
+  .label-muted{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .hero-balance{font-size:32px;font-weight:700;letter-spacing:-0.3px;}
+  .sub-balance{font-size:20px;font-weight:700;letter-spacing:-0.2px;}
+  .ret{font-size:13px;font-weight:600;margin-top:4px;display:inline-block;}
+  .ret.up{color:var(--green);}
+  .ret.down{color:var(--red);}
+
+  .section-title{font-size:16px;font-weight:700;margin:6px 2px 12px;}
+  .pill-tag{display:inline-block;font-size:11px;color:var(--muted);background:var(--card-2);border-radius:20px;padding:4px 10px;margin-bottom:10px;}
+
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  button{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;border:none;background:var(--card-2);color:var(--text);padding:11px 14px;border-radius:14px;cursor:pointer;}
+  button.primary{background:var(--white);color:#0A0A0C;}
+  button.live.on{background:var(--red);color:#1c0606;}
+  button:disabled{opacity:.4;}
+  button.linklike{background:none;color:var(--muted);text-decoration:underline;padding:4px 0;font-size:12.5px;}
+
+  .badge{display:inline-block;padding:6px 14px;border-radius:10px;font-weight:700;font-size:14px;}
+  .badge.LONG{background:rgba(52,211,153,0.15);color:var(--green);}
+  .badge.SHORT{background:rgba(248,113,113,0.15);color:var(--red);}
+  .badge.HOLD{background:var(--card-2);color:var(--muted);}
+
+  .reasoning{font-size:12.5px;color:#C7C7CC;line-height:1.6;margin-top:12px;background:var(--card-2);border-radius:14px;padding:12px 14px;}
+  .meta{font-size:11px;color:var(--muted);margin-top:8px;}
+
+  .indrow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+  .indrow:last-child{border-bottom:none;}
+  .indrow .ilabel{font-size:12.5px;color:var(--muted);}
+  .indrow .ival{font-size:13.5px;font-weight:600;}
+  .bar{height:4px;border-radius:2px;background:var(--card-2);margin-top:6px;overflow:hidden;width:90px;}
+  .bar>div{height:100%;border-radius:2px;}
+  canvas{width:100%;height:80px;display:block;margin-top:6px;}
+
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--border);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;}
+  td{padding:9px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tr:last-child td{border-bottom:none;}
+  .side-BUY{color:var(--green);font-weight:600;}
+  .side-SELL{color:var(--red);font-weight:600;}
+  .side-SHORT{color:var(--red);font-weight:600;}
+  .side-COVER{color:var(--green);font-weight:600;}
+  .tablewrap{overflow-x:auto;}
+  .empty{color:var(--muted);font-size:12.5px;padding:24px 0;text-align:center;}
+  .agent-chip{font-size:10px;padding:2px 7px;border-radius:8px;background:var(--card-2);color:var(--muted);}
+
+  .stat-mini{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .stat-mini:last-child{border-bottom:none;}
+  .stat-mini .v{font-weight:700;}
+
+  p.body-text{font-size:13.5px;color:#C7C7CC;line-height:1.6;}
+  a.linkbtn{display:inline-block;font-size:13px;font-weight:600;color:var(--text);background:var(--card-2);padding:10px 14px;border-radius:14px;text-decoration:none;margin-top:8px;}
+
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;display:flex;background:rgba(15,15,18,0.92);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:9px 4px calc(9px + env(safe-area-inset-bottom));z-index:50;}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:600;padding:6px 2px;border-radius:14px;}
+  .nav-item.active{color:var(--text);}
+  .nav-item svg{width:21px;height:21px;}
+  .sidebar-brand{display:none;}
+
+  /* Desktop: bottom tab bar becomes a left sidebar, content gets more breathing room */
+  @media (min-width:880px){
+    .app{max-width:100%;}
+    .sidebar-brand{display:flex;align-items:center;gap:10px;padding:6px 14px 28px;}
+    .sidebar-brand h1{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;margin:0;}
+    .bottom-nav{
+      position:fixed;left:0;right:auto;bottom:0;top:0;max-width:240px;width:240px;margin:0;
+      flex-direction:column;align-items:stretch;justify-content:flex-start;
+      background:var(--card);backdrop-filter:none;border-top:none;border-right:1px solid var(--border);
+      padding:28px 14px;
+    }
+    .nav-item{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;padding:12px 14px;font-size:14px;border-radius:14px;margin-bottom:4px;}
+    .nav-item.active{background:var(--card-2);}
+    .nav-item svg{width:20px;height:20px;}
+    main{margin-left:240px;max-width:760px;padding:48px 48px 60px;}
+    .card{padding:26px 28px;}
+    .card-row{gap:18px;}
+    .hero-balance{font-size:40px;}
+    .section-title{font-size:18px;margin-top:10px;}
+    .topbar{padding-bottom:22px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+<main id="content">
+
+  <!-- HOME -->
+  <section id="tab-home" class="tab-panel active">
+    <div class="topbar">
+      <div class="brand">
+        <svg width="40" height="40" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+          <line x1="10" y1="48" x2="42" y2="14" stroke="#2BC4F0" stroke-width="7" stroke-linecap="butt"/>
+          <polygon points="48,6 36,12 40,22" fill="#2BC4F0"/>
+          <line x1="44" y1="18" x2="14" y2="44" stroke="#2BC4F0" stroke-width="7" stroke-linecap="butt"/>
+          <polygon points="8,50 18,42 14,36" fill="#2BC4F0"/>
+        </svg>
+        <h1>AXIS</h1>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="pill-tag">Bitget AI Base Camp Hackathon S1 · Track 1</div>
+      <h2 class="display" style="margin:0 0 10px;font-size:20px;">BTC Adaptive Trend + Mean-Reversion Agent</h2>
+      <p class="body-text">AXIS autonomously perceives the BTC market, decides a direction, executes simulated trades, and manages risk on its own, with no human in the loop. It runs two agents side by side: a long-only <b>Spot</b> agent and a long/short <b>Futures</b> agent, both driven by the same macro trend and momentum logic.</p>
+      <a class="linkbtn" id="homeGithubLink" href="https://github.com/shefkhen01/axis-trading-agent" target="_blank">View GitHub Repo →</a>
+    </div>
+
+    <div class="section-title">Quick Snapshot</div>
+    <div class="card">
+      <div class="label-muted">Combined Paper Balance</div>
+      <div class="hero-balance" id="home-totalBalance">$20,000.00</div>
+      <div class="ret" id="home-totalReturn">0.00%</div>
+    </div>
+    <div class="card-row">
+      <div class="card">
+        <div class="label-muted">Spot</div>
+        <div class="sub-balance" id="home-spotBalance">$10,000.00</div>
+        <div class="ret" id="home-spotReturn">0.00%</div>
+      </div>
+      <div class="card">
+        <div class="label-muted">Futures</div>
+        <div class="sub-balance" id="home-futuresBalance">$10,000.00</div>
+        <div class="ret" id="home-futuresReturn">0.00%</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label-muted" style="margin-bottom:10px;">How it works</div>
+      <div class="stat-mini"><span>Perceive</span><span class="v">Live Bitget market data</span></div>
+      <div class="stat-mini"><span>Decide</span><span class="v">EMA50/100 trend + RSI/MACD</span></div>
+      <div class="stat-mini"><span>Execute</span><span class="v">Simulated paper trades</span></div>
+      <div class="stat-mini"><span>Risk</span><span class="v">3% stop-loss / 6% take-profit</span></div>
+    </div>
+  </section>
+
+  <!-- SPOT -->
+  <section id="tab-spot" class="tab-panel">
+    <div class="topbar">
+      <div class="brand"><div class="dot" id="spot-connDot"></div><h1>Spot</h1></div>
+      <div class="priceblock"><div class="p" id="spot-livePrice">—</div><div class="c" id="spot-liveChg">—</div></div>
+    </div>
+    <div class="pill-tag">BTC/USDT · long-only · waits flat in downtrends</div>
+
+    <div class="section-title">Perception</div>
+    <div class="card">
+      <div class="indrow">
+        <div><div class="ilabel">RSI (14)</div><div class="bar"><div id="spot-rsiBar" style="width:50%;background:var(--muted);"></div></div></div>
+        <div class="ival" id="spot-rsiVal">—</div>
+      </div>
+      <div class="indrow"><div class="ilabel">MACD line</div><div class="ival" id="spot-macdVal">—</div></div>
+      <div class="indrow"><div class="ilabel">MACD signal</div><div class="ival" id="spot-macdSigVal">—</div></div>
+      <div class="indrow"><div class="ilabel">EMA 50</div><div class="ival" id="spot-ema50Val">—</div></div>
+      <div class="indrow"><div class="ilabel">EMA 100</div><div class="ival" id="spot-ema100Val">—</div></div>
+      <div class="indrow"><div class="ilabel">Macro Trend</div><div class="ival" id="spot-trendVal">—</div></div>
+      <canvas id="spot-sparkline"></canvas>
+    </div>
+
+    <div class="section-title">Decision &amp; Execution</div>
+    <div class="card">
+      <div class="badge HOLD" id="spot-decisionBadge">HOLD</div>
+      <div class="reasoning" id="spot-reasoningText">Agent idle. Run a backtest or start the live loop to begin.</div>
+      <div class="meta" id="spot-lastUpdated">Not yet run</div>
+      <div class="btn-row">
+        <button class="primary" id="spot-backtestBtn">Run Backtest (30d)</button>
+        <button class="live" id="spot-liveBtn">Start Live Agent</button>
+      </div>
+      <div class="btn-row"><button id="spot-resetBtn">Reset</button></div>
+    </div>
+
+    <div class="section-title">Risk &amp; Performance</div>
+    <div class="card">
+      <div class="stat-mini"><span>Paper Balance</span><span class="v" id="spot-balanceVal">$10,000.00</span></div>
+      <div class="stat-mini"><span>Total Return</span><span class="v" id="spot-returnVal">0.00%</span></div>
+      <div class="stat-mini"><span>Win Rate</span><span class="v" id="spot-winrateVal">—</span></div>
+      <div class="stat-mini"><span>Trades Logged</span><span class="v" id="spot-tradesCountVal">0</span></div>
+      <div class="stat-mini"><span>Open Position</span><span class="v" id="spot-positionVal">Flat</span></div>
+    </div>
+
+    <div class="section-title">Trade Log</div>
+    <div class="card">
+      <div class="btn-row" style="margin-top:0;margin-bottom:12px;"><button id="spot-exportBtn">Export Log (CSV)</button></div>
+      <div class="tablewrap">
+        <table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Qty</th><th>Δ</th><th>After</th></tr></thead>
+        <tbody id="spot-logBody"></tbody></table>
+        <div class="empty" id="spot-emptyLog">No trades yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FUTURES -->
+  <section id="tab-futures" class="tab-panel">
+    <div class="topbar">
+      <div class="brand"><div class="dot" id="futures-connDot"></div><h1>Futures</h1></div>
+      <div class="priceblock"><div class="p" id="futures-livePrice">—</div><div class="c" id="futures-liveChg">—</div></div>
+    </div>
+    <div class="pill-tag">BTC/USDT-PERP · long or short · 1x notional</div>
+
+    <div class="section-title">Perception</div>
+    <div class="card">
+      <div class="indrow">
+        <div><div class="ilabel">RSI (14)</div><div class="bar"><div id="futures-rsiBar" style="width:50%;background:var(--muted);"></div></div></div>
+        <div class="ival" id="futures-rsiVal">—</div>
+      </div>
+      <div class="indrow"><div class="ilabel">MACD line</div><div class="ival" id="futures-macdVal">—</div></div>
+      <div class="indrow"><div class="ilabel">MACD signal</div><div class="ival" id="futures-macdSigVal">—</div></div>
+      <div class="indrow"><div class="ilabel">EMA 50</div><div class="ival" id="futures-ema50Val">—</div></div>
+      <div class="indrow"><div class="ilabel">EMA 100</div><div class="ival" id="futures-ema100Val">—</div></div>
+      <div class="indrow"><div class="ilabel">Macro Trend</div><div class="ival" id="futures-trendVal">—</div></div>
+      <canvas id="futures-sparkline"></canvas>
+    </div>
+
+    <div class="section-title">Decision &amp; Execution</div>
+    <div class="card">
+      <div class="badge HOLD" id="futures-decisionBadge">HOLD</div>
+      <div class="reasoning" id="futures-reasoningText">Agent idle. Run a backtest or start the live loop to begin.</div>
+      <div class="meta" id="futures-lastUpdated">Not yet run</div>
+      <div class="btn-row">
+        <button class="primary" id="futures-backtestBtn">Run Backtest (30d)</button>
+        <button class="live" id="futures-liveBtn">Start Live Agent</button>
+      </div>
+      <div class="btn-row"><button id="futures-resetBtn">Reset</button></div>
+    </div>
+
+    <div class="section-title">Risk &amp; Performance</div>
+    <div class="card">
+      <div class="stat-mini"><span>Paper Balance</span><span class="v" id="futures-balanceVal">$10,000.00</span></div>
+      <div class="stat-mini"><span>Total Return</span><span class="v" id="futures-returnVal">0.00%</span></div>
+      <div class="stat-mini"><span>Win Rate</span><span class="v" id="futures-winrateVal">—</span></div>
+      <div class="stat-mini"><span>Trades Logged</span><span class="v" id="futures-tradesCountVal">0</span></div>
+      <div class="stat-mini"><span>Open Position</span><span class="v" id="futures-positionVal">Flat</span></div>
+    </div>
+
+    <div class="section-title">Trade Log</div>
+    <div class="card">
+      <div class="btn-row" style="margin-top:0;margin-bottom:12px;"><button id="futures-exportBtn">Export Log (CSV)</button></div>
+      <div class="tablewrap">
+        <table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Qty</th><th>Δ</th><th>After</th></tr></thead>
+        <tbody id="futures-logBody"></tbody></table>
+        <div class="empty" id="futures-emptyLog">No trades yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PORTFOLIO -->
+  <section id="tab-portfolio" class="tab-panel">
+    <div class="topbar">
+      <div class="brand"><div class="dot"></div><h1>Portfolio</h1></div>
+    </div>
+
+    <div class="card">
+      <div class="label-muted">Total Balance (Spot + Futures)</div>
+      <div class="hero-balance" id="pf-totalBalance">$20,000.00</div>
+      <div class="ret" id="pf-totalReturn">0.00%</div>
+      <canvas id="pf-sparkline"></canvas>
+    </div>
+
+    <div class="card-row">
+      <div class="card">
+        <div class="label-muted">Spot Balance</div>
+        <div class="sub-balance" id="pf-spotBalance">$10,000.00</div>
+        <div class="ret" id="pf-spotReturn">0.00%</div>
+      </div>
+      <div class="card">
+        <div class="label-muted">Futures Balance</div>
+        <div class="sub-balance" id="pf-futuresBalance">$10,000.00</div>
+        <div class="ret" id="pf-futuresReturn">0.00%</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="stat-mini"><span>Combined Win Rate</span><span class="v" id="pf-winrate">—</span></div>
+      <div class="stat-mini"><span>Combined Trades</span><span class="v" id="pf-tradesCount">0</span></div>
+    </div>
+
+    <div class="section-title">Combined Trade History</div>
+    <div class="card">
+      <div class="btn-row" style="margin-top:0;margin-bottom:12px;"><button id="pf-exportBtn">Export Combined Log (CSV)</button></div>
+      <div class="tablewrap">
+        <table><thead><tr><th>Time</th><th>Agent</th><th>Side</th><th>Price</th><th>Δ</th></tr></thead>
+        <tbody id="pf-logBody"></tbody></table>
+        <div class="empty" id="pf-emptyLog">No trades yet. Run a backtest on Spot or Futures to get started.</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottom-nav">
+  <div class="sidebar-brand">
+    <svg width="32" height="32" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+      <line x1="10" y1="48" x2="42" y2="14" stroke="#2BC4F0" stroke-width="7" stroke-linecap="butt"/>
+      <polygon points="48,6 36,12 40,22" fill="#2BC4F0"/>
+      <line x1="44" y1="18" x2="14" y2="44" stroke="#2BC4F0" stroke-width="7" stroke-linecap="butt"/>
+      <polygon points="8,50 18,42 14,36" fill="#2BC4F0"/>
+    </svg>
+    <h1>AXIS</h1>
+  </div>
+  <button class="nav-item active" data-tab="home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v5"/></svg>
+    Home
+  </button>
+  <button class="nav-item" data-tab="spot">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>
+    Spot
+  </button>
+  <button class="nav-item" data-tab="futures">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="8" y1="4" x2="8" y2="20"/><rect x="5.3" y="8" width="5.4" height="6" rx="1.2"/><line x1="16" y1="4" x2="16" y2="20"/><rect x="13.3" y="13" width="5.4" height="6" rx="1.2"/></svg>
+    Futures
+  </button>
+  <button class="nav-item" data-tab="portfolio">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/><path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7"/></svg>
+    Portfolio
+  </button>
+</nav>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const SYMBOL = "BTCUSDT";
+  const CONFIG = {
+    POSITION_PCT: 0.20,
+    STOP_LOSS_PCT: 0.03,
+    TAKE_PROFIT_PCT: 0.06,
+    FEE_PCT: 0.001,
+    BACKTEST_CANDLES: 760,
+    GRANULARITY: "1h",
+    LIVE_INTERVAL_MS: 60000,
+    WARMUP: 110,
+    STARTING_BALANCE: 10000
+  };
+
+  const hasStorage = typeof window.storage !== "undefined";
+  const memoryStates = {spot:null, futures:null};
+
+  // ---------- STATE ----------
+  function defaultState(){
+    return {balance: CONFIG.STARTING_BALANCE, position: null, trades: [], lastDecision: null, lastReasoning: "Agent idle. Run a backtest or start the live loop to begin.", lastUpdated: null};
+  }
+  async function loadState(key){
+    if(hasStorage){
+      try{
+        const res = await window.storage.get("signal-agent-state-"+key, false);
+        return res ? JSON.parse(res.value) : defaultState();
+      }catch(e){ return defaultState(); }
+    }
+    if(!memoryStates[key]) memoryStates[key] = defaultState();
+    return memoryStates[key];
+  }
+  async function saveState(key, state){
+    if(hasStorage){
+      try{ await window.storage.set("signal-agent-state-"+key, JSON.stringify(state), false); }catch(e){}
+    } else {
+      memoryStates[key] = state;
+    }
+  }
+
+  // ---------- DATA FETCH ----------
+  // Bitget's public endpoints don't always allow direct browser fetches (CORS).
+  // We try direct first, then fail over across several public CORS proxies in turn,
+  // since any single free proxy can be down or rate-limited at a given moment.
+  async function corsSafeFetchJSON(url){
+    const attempts = [
+      url,
+      "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+      "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url),
+      "https://corsproxy.io/?url=" + encodeURIComponent(url),
+      "https://thingproxy.freeboard.io/fetch/" + url
+    ];
+    let lastErr = null;
+    for(const attemptUrl of attempts){
+      try{
+        const r = await fetch(attemptUrl);
+        if(!r.ok) throw new Error("bad status "+r.status);
+        return await r.json();
+      }catch(e){
+        lastErr = e;
+      }
+    }
+    throw new Error("All data sources unreachable right now (tried direct + 4 proxies). " + (lastErr ? lastErr.message : ""));
+  }
+  let lastFetchSynthetic = false; // true whenever the most recent fetch had to fall back to simulated data
+
+  function generateSyntheticCandles(count, granularityHours){
+    const candles = [];
+    let price = 63000 + (Math.random()-0.5)*2000;
+    const now = Date.now();
+    const stepMs = granularityHours*3600*1000;
+    for(let i=count-1;i>=0;i--){
+      const open = price;
+      const vol = price*0.006;
+      const close = open + (Math.random()-0.5)*vol*2;
+      const high = Math.max(open,close) + Math.random()*vol*0.5;
+      const low = Math.min(open,close) - Math.random()*vol*0.5;
+      candles.push({ts: now-i*stepMs, open, high, low, close});
+      price = close;
+    }
+    return candles;
+  }
+
+  async function fetchTicker(symbol){
+    try{
+      const j = await corsSafeFetchJSON(`https://api.bitget.com/api/v2/spot/market/tickers?symbol=${symbol}`);
+      lastFetchSynthetic = false;
+      return j.data && j.data[0] ? j.data[0] : null;
+    }catch(e){
+      lastFetchSynthetic = true;
+      const price = 63000 + (Math.random()-0.5)*3000;
+      return {lastPr: price.toFixed(2), change24h: ((Math.random()-0.5)*0.06).toFixed(4)};
+    }
+  }
+  async function fetchCandles(symbol, granularity, limit){
+    try{
+      const j = await corsSafeFetchJSON(`https://api.bitget.com/api/v2/spot/market/candles?symbol=${symbol}&granularity=${granularity}&limit=${limit}`);
+      if(!j.data) throw new Error("empty response");
+      lastFetchSynthetic = false;
+      return j.data.map(c => ({ts:Number(c[0]), open:Number(c[1]), high:Number(c[2]), low:Number(c[3]), close:Number(c[4])})).sort((a,b)=>a.ts-b.ts);
+    }catch(e){
+      lastFetchSynthetic = true;
+      const hours = granularity==="1h" ? 1 : 1;
+      return generateSyntheticCandles(limit, hours);
+    }
+  }
+
+  // ---------- INDICATORS ----------
+  function calcEMA(values, period){
+    const out = new Array(values.length).fill(null);
+    if(values.length < period) return out;
+    let sma = 0;
+    for(let i=0;i<period;i++) sma += values[i];
+    sma /= period;
+    out[period-1] = sma;
+    const k = 2/(period+1);
+    for(let i=period;i<values.length;i++) out[i] = values[i]*k + out[i-1]*(1-k);
+    return out;
+  }
+  function calcRSI(values, period){
+    const out = new Array(values.length).fill(null);
+    if(values.length <= period) return out;
+    let gains=0, losses=0;
+    for(let i=1;i<=period;i++){ const d=values[i]-values[i-1]; if(d>=0) gains+=d; else losses-=d; }
+    let avgGain = gains/period, avgLoss = losses/period;
+    out[period] = avgLoss===0 ? 100 : 100-(100/(1+avgGain/avgLoss));
+    for(let i=period+1;i<values.length;i++){
+      const d = values[i]-values[i-1];
+      const g = d>0?d:0, l = d<0?-d:0;
+      avgGain = (avgGain*(period-1)+g)/period;
+      avgLoss = (avgLoss*(period-1)+l)/period;
+      out[i] = avgLoss===0 ? 100 : 100-(100/(1+avgGain/avgLoss));
+    }
+    return out;
+  }
+  function calcMACD(values){
+    const ema12 = calcEMA(values,12), ema26 = calcEMA(values,26);
+    const macdLine = values.map((_,i)=> (ema12[i]!=null && ema26[i]!=null) ? ema12[i]-ema26[i] : null);
+    const startIdx = macdLine.findIndex(v=>v!=null);
+    const signalLine = new Array(values.length).fill(null);
+    if(startIdx !== -1){
+      const segEma = calcEMA(macdLine.slice(startIdx),9);
+      for(let i=0;i<segEma.length;i++) signalLine[startIdx+i] = segEma[i];
+    }
+    const hist = macdLine.map((v,i)=> (v!=null && signalLine[i]!=null) ? v-signalLine[i] : null);
+    return {macdLine, signalLine, hist};
+  }
+  function computeAllIndicators(closes){
+    return {ema20: calcEMA(closes,20), ema50: calcEMA(closes,50), ema100: calcEMA(closes,100), rsi: calcRSI(closes,14), macd: calcMACD(closes)};
+  }
+  function calcMomentum(i, ind){
+    const rsi = ind.rsi[i];
+    const macdLine = ind.macd.macdLine[i], macdSig = ind.macd.signalLine[i];
+    const macdLinePrev = ind.macd.macdLine[i-1], macdSigPrev = ind.macd.signalLine[i-1];
+    let score = 0; const notes = [];
+    if(rsi != null){
+      if(rsi < 35){ score += 1; notes.push(`RSI ${rsi.toFixed(1)} oversold`); }
+      else if(rsi > 65){ score -= 1; notes.push(`RSI ${rsi.toFixed(1)} overbought`); }
+      else notes.push(`RSI ${rsi.toFixed(1)} neutral`);
+    }
+    if(macdLine!=null && macdSig!=null && macdLinePrev!=null && macdSigPrev!=null){
+      const crossedUp = macdLinePrev <= macdSigPrev && macdLine > macdSig;
+      const crossedDown = macdLinePrev >= macdSigPrev && macdLine < macdSig;
+      if(crossedUp){ score += 1; notes.push("MACD bullish cross"); }
+      else if(crossedDown){ score -= 1; notes.push("MACD bearish cross"); }
+      else notes.push(macdLine > macdSig ? "MACD above signal" : "MACD below signal");
+    }
+    return {score, notes};
+  }
+
+  // ---------- DECISION ENGINES ----------
+  function futuresDecision(i, closes, ind){
+    const ema50=ind.ema50[i], ema100=ind.ema100[i];
+    const {score, notes} = calcMomentum(i, ind);
+    let bias="NONE", trendNote="trend unavailable";
+    if(ema50!=null && ema100!=null){
+      const trendUp = ema50 > ema100;
+      trendNote = trendUp ? "EMA50>EMA100 macro uptrend" : "EMA50<EMA100 macro downtrend";
+      if(trendUp && score>=1) bias="LONG";
+      else if(!trendUp && score<=-1) bias="SHORT";
+    }
+    return {bias, score, reasoning:`[rule-engine] ${[...notes, trendNote].join(" | ")} → momentum ${score}, bias: ${bias}`};
+  }
+  function spotDecision(i, closes, ind){
+    const ema50=ind.ema50[i], ema100=ind.ema100[i];
+    const {score, notes} = calcMomentum(i, ind);
+    let bias="NONE", trendNote="trend unavailable";
+    if(ema50!=null && ema100!=null){
+      // Require EMA50 to be clearly above EMA100 (not just barely crossed) so spot
+      // doesn't keep getting whipsawed in and out right at a fragile crossover point.
+      const trendUp = ema50 > ema100 * 1.004;
+      trendNote = trendUp ? "EMA50 clearly above EMA100, confirmed uptrend" : "no confirmed uptrend yet, staying flat since spot can't short";
+      // Require both RSI and MACD to agree (score 2, not just 1) for a higher-conviction entry.
+      if(trendUp && score>=2) bias="LONG";
+    }
+    return {bias, score, reasoning:`[rule-engine] ${[...notes, trendNote].join(" | ")} → momentum ${score}, bias: ${bias}`};
+  }
+  const ENGINES = {
+    spot: {decisionFn: spotDecision, label: "Spot Agent (long-only)", allowShort: false},
+    futures: {decisionFn: futuresDecision, label: "Futures Agent (long/short)", allowShort: true}
+  };
+
+  // ---------- POSITION HELPERS ----------
+  function openPosition(balance, side, price){
+    const notional = balance * CONFIG.POSITION_PCT;
+    const fee = notional * CONFIG.FEE_PCT;
+    const qty = (notional - fee) / price;
+    return {position: {side, qty, entryPrice: price, notional}, balance: balance - notional, logEntry: {side: side==="long"?"BUY":"SHORT", price, qty, change: -notional}};
+  }
+  function closePosition(balance, position, exitPrice){
+    const fee = position.qty * exitPrice * CONFIG.FEE_PCT;
+    const pnl = position.side === "long" ? (exitPrice-position.entryPrice)*position.qty - fee : (position.entryPrice-exitPrice)*position.qty - fee;
+    return {balance: balance + position.notional + pnl, logEntry: {side: position.side==="long"?"SELL":"COVER", price: exitPrice, qty: position.qty, change: pnl}};
+  }
+  function checkRisk(position, low, high){
+    if(!position) return null;
+    if(position.side === "long"){
+      const stop = position.entryPrice*(1-CONFIG.STOP_LOSS_PCT), take = position.entryPrice*(1+CONFIG.TAKE_PROFIT_PCT);
+      if(low<=stop) return {exitPrice:stop, reason:"stop-loss hit"};
+      if(high>=take) return {exitPrice:take, reason:"take-profit hit"};
+    } else {
+      const stop = position.entryPrice*(1+CONFIG.STOP_LOSS_PCT), take = position.entryPrice*(1-CONFIG.TAKE_PROFIT_PCT);
+      if(high>=stop) return {exitPrice:stop, reason:"stop-loss hit"};
+      if(low<=take) return {exitPrice:take, reason:"take-profit hit"};
+    }
+    return null;
+  }
+
+  // ---------- OPTIONAL CLAUDE NARRATION ----------
+  async function tryClaudeReasoning(snapshot){
+    try{
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), 6000);
+      const prompt = `Narrate a crypto trading agent's decision in ONE short sentence, under 25 words, plain language.
+Agent: ${snapshot.agentLabel} (${snapshot.allowShort ? "can go long or short" : "long-only, cannot short"})
+Pair: ${snapshot.symbol}  Price: ${snapshot.price}
+RSI: ${snapshot.rsi}  MACD line: ${snapshot.macdLine}  MACD signal: ${snapshot.macdSignal}  EMA50: ${snapshot.ema50}  EMA100: ${snapshot.ema100} (macro trend filter)
+Action taken: ${snapshot.action}
+Respond with ONLY that one sentence — no markdown, no quotes.`;
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", headers:{"Content-Type":"application/json"}, signal: controller.signal,
+        body: JSON.stringify({model:"claude-sonnet-4-6", max_tokens:1000, messages:[{role:"user", content: prompt}]})
+      });
+      clearTimeout(t);
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      const textBlock = (data.content||[]).find(b=>b.type==="text");
+      if(!textBlock) return null;
+      const text = textBlock.text.trim();
+      return (!text || text.length>280) ? null : text;
+    }catch(e){ return null; }
+  }
+
+  // ---------- BACKTEST (generic across engines) ----------
+  async function runBacktest(symbol, decisionFn){
+    const candles = await fetchCandles(symbol, CONFIG.GRANULARITY, CONFIG.BACKTEST_CANDLES);
+    if(candles.length < CONFIG.WARMUP + 10) return null;
+    const closes = candles.map(c=>c.close);
+    const ind = computeAllIndicators(closes);
+    let balance = CONFIG.STARTING_BALANCE, position = null;
+    const trades = [];
+    for(let i=CONFIG.WARMUP; i<candles.length; i++){
+      const candle = candles[i];
+      if(position){
+        const risk = checkRisk(position, candle.low, candle.high);
+        if(risk){
+          const r = closePosition(balance, position, risk.exitPrice);
+          balance = r.balance;
+          trades.push({time: candle.ts, symbol, ...r.logEntry, balanceAfter: balance, reason: risk.reason});
+          position = null;
+        }
+      }
+      const {bias, reasoning} = decisionFn(i, closes, ind);
+      if(!position){
+        if(bias === "LONG"){
+          const r = openPosition(balance, "long", candle.close);
+          balance = r.balance; position = r.position;
+          trades.push({time: candle.ts, symbol, ...r.logEntry, balanceAfter: balance, reason: reasoning});
+        } else if(bias === "SHORT"){
+          const r = openPosition(balance, "short", candle.close);
+          balance = r.balance; position = r.position;
+          trades.push({time: candle.ts, symbol, ...r.logEntry, balanceAfter: balance, reason: reasoning});
+        }
+      } else if((position.side==="long" && bias==="SHORT") || (position.side==="short" && bias==="LONG")){
+        const r = closePosition(balance, position, candle.close);
+        balance = r.balance;
+        trades.push({time: candle.ts, symbol, ...r.logEntry, balanceAfter: balance, reason: "trend flipped, closing. " + reasoning});
+        position = null;
+      }
+    }
+    return {trades, finalBalance: balance, finalPosition: position, candles, closes, ind};
+  }
+
+  // ---------- UI HELPERS ----------
+  const $ = (prefix, id) => document.getElementById(prefix ? `${prefix}-${id}` : id);
+  function fmtMoney(n){ return "$" + n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fmtTime(ts){ return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+
+  function drawSparkline(canvas, closes){
+    if(!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = 80;
+    ctx.clearRect(0,0,w,h);
+    if(!closes || closes.length<2) return;
+    const slice = closes.slice(-120);
+    const min = Math.min(...slice), max = Math.max(...slice);
+    const range = (max-min) || 1;
+    ctx.beginPath();
+    slice.forEach((v,i)=>{
+      const x = (i/(slice.length-1))*w, y = h - ((v-min)/range)*h;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle = slice[slice.length-1] >= slice[0] ? "#34D399" : "#F87171";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+
+  function renderIndicators(prefix, i, closes, ind){
+    const rsi = ind.rsi[i];
+    $(prefix,"rsiVal").textContent = rsi!=null ? rsi.toFixed(1) : "—";
+    if(rsi!=null){
+      $(prefix,"rsiBar").style.width = Math.max(0,Math.min(100,rsi))+"%";
+      $(prefix,"rsiBar").style.background = rsi<35 ? "#34D399" : rsi>65 ? "#F87171" : "#8A8A93";
+    }
+    $(prefix,"macdVal").textContent = ind.macd.macdLine[i]!=null ? ind.macd.macdLine[i].toFixed(2) : "—";
+    $(prefix,"macdSigVal").textContent = ind.macd.signalLine[i]!=null ? ind.macd.signalLine[i].toFixed(2) : "—";
+    $(prefix,"ema50Val").textContent = ind.ema50[i]!=null ? ind.ema50[i].toFixed(2) : "—";
+    $(prefix,"ema100Val").textContent = ind.ema100[i]!=null ? ind.ema100[i].toFixed(2) : "—";
+    const trendUp = ind.ema50[i]!=null && ind.ema100[i]!=null && ind.ema50[i]>ind.ema100[i];
+    $(prefix,"trendVal").innerHTML = ind.ema100[i]==null ? "—" : (trendUp ? '<span style="color:var(--green)">Uptrend</span>' : '<span style="color:var(--red)">Downtrend</span>');
+    drawSparkline($(prefix,"sparkline"), closes);
+  }
+
+  function renderDecision(prefix, label, reasoningText, source){
+    const badge = $(prefix,"decisionBadge");
+    badge.className = "badge " + label;
+    badge.textContent = label;
+    $(prefix,"reasoningText").textContent = reasoningText;
+    $(prefix,"lastUpdated").textContent = (source==="claude" ? "Claude-assisted · " : "Rule engine · ") + "updated " + new Date().toLocaleTimeString();
+  }
+
+  function renderStats(prefix, state){
+    $(prefix,"balanceVal").textContent = fmtMoney(state.balance);
+    const ret = ((state.balance - CONFIG.STARTING_BALANCE)/CONFIG.STARTING_BALANCE)*100;
+    const retEl = $(prefix,"returnVal");
+    retEl.textContent = (ret>=0?"+":"") + ret.toFixed(2) + "%";
+    retEl.className = "v " + (ret>=0?"ret up":"ret down");
+    retEl.style.fontWeight = "700";
+    const closingTrades = state.trades.filter(t=>t.side==="SELL"||t.side==="COVER");
+    const wins = closingTrades.filter(t=>t.change>0).length;
+    $(prefix,"winrateVal").textContent = closingTrades.length ? Math.round((wins/closingTrades.length)*100)+"%" : "—";
+    $(prefix,"tradesCountVal").textContent = state.trades.length;
+    $(prefix,"positionVal").textContent = state.position ? `${state.position.side.toUpperCase()} ${state.position.qty.toFixed(5)} @ ${fmtMoney(state.position.entryPrice)}` : "Flat";
+  }
+
+  function renderLog(prefix, trades){
+    const body = $(prefix,"logBody");
+    body.innerHTML = "";
+    $(prefix,"emptyLog").style.display = trades.length ? "none" : "block";
+    trades.slice().reverse().slice(0,200).forEach(t=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${fmtTime(t.time)}</td><td class="side-${t.side}">${t.side}</td><td>${Number(t.price).toFixed(2)}</td><td>${Number(t.qty).toFixed(5)}</td>
+        <td style="color:${t.change>=0?'var(--green)':'var(--red)'}">${t.change>=0?'+':''}${Number(t.change).toFixed(2)}</td><td>${fmtMoney(t.balanceAfter)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  function exportTradesCSV(trades, symbol, agentLabel){
+    const header = "timestamp,trading_pair,direction,price,quantity,account_balance_change,account_balance_after,reason";
+    const rows = trades.map(t => [new Date(t.time).toISOString(), t.symbol||symbol, t.side, Number(t.price).toFixed(2), Number(t.qty).toFixed(8), Number(t.change).toFixed(2), Number(t.balanceAfter).toFixed(2), `"${(t.reason||"").replace(/"/g,'""')}"`].join(","));
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `axis-${agentLabel}-trade-log-${Date.now()}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCombinedCSV(spotTrades, futuresTrades){
+    const header = "timestamp,agent,trading_pair,direction,price,quantity,account_balance_change,account_balance_after,reason";
+    const tag = (trades, agent) => trades.map(t => [new Date(t.time).toISOString(), agent, t.symbol||SYMBOL, t.side, Number(t.price).toFixed(2), Number(t.qty).toFixed(8), Number(t.change).toFixed(2), Number(t.balanceAfter).toFixed(2), `"${(t.reason||"").replace(/"/g,'""')}"`].join(","));
+    const rows = [...tag(spotTrades,"Spot"), ...tag(futuresTrades,"Futures")];
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `axis-combined-trade-log-${Date.now()}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- PER-ENGINE CONTROLLERS ----------
+  const liveTimers = {spot:null, futures:null};
+
+  async function handleBacktestFor(key){
+    const engine = ENGINES[key];
+    const btn = $(key,"backtestBtn");
+    btn.disabled = true;
+    $(key,"reasoningText").textContent = "Running backtest. Fetching real candles from Bitget…";
+    try{
+      const result = await runBacktest(SYMBOL, engine.decisionFn);
+      if(!result){ btn.disabled=false; return; }
+      let state = await loadState(key);
+      state.balance = result.finalBalance;
+      state.position = result.finalPosition;
+      state.trades = result.trades.map(t=>({...t, symbol: SYMBOL}));
+      state.lastUpdated = Date.now();
+      await saveState(key, state);
+      const lastIdx = result.closes.length-1;
+      renderIndicators(key, lastIdx, result.closes, result.ind);
+      const lastDecision = engine.decisionFn(lastIdx, result.closes, result.ind);
+      const badgeLabel = lastDecision.bias==="NONE" ? "HOLD" : lastDecision.bias;
+      state.lastDecision = badgeLabel; state.lastReasoning = lastDecision.reasoning;
+      await saveState(key, state);
+      const dataNote = lastFetchSynthetic
+        ? "[SIMULATED DATA, live Bitget feed unreachable from this network right now] "
+        : "";
+      renderDecision(key, badgeLabel, dataNote + `Backtest complete. ${result.trades.length} trades simulated over about ${Math.round(result.candles.length/24)} days of ${lastFetchSynthetic?"simulated":"real"} 1H data. ` + lastDecision.reasoning, "rule");
+      renderStats(key, state);
+      renderLog(key, state.trades);
+      refreshPortfolio(); refreshHome();
+    }catch(e){
+      $(key,"reasoningText").textContent = "Backtest failed: " + e.message;
+    }
+    btn.disabled = false;
+  }
+
+  async function liveCycleFor(key){
+    const engine = ENGINES[key];
+    try{
+      const candles = await fetchCandles(SYMBOL, CONFIG.GRANULARITY, 200);
+      if(candles.length < CONFIG.WARMUP+5) return;
+      const closes = candles.map(c=>c.close);
+      const ind = computeAllIndicators(closes);
+      const i = closes.length-1, currentPrice = closes[i];
+      renderIndicators(key, i, closes, ind);
+
+      let state = await loadState(key);
+      let lastTrade = null;
+
+      if(state.position){
+        const risk = checkRisk(state.position, currentPrice, currentPrice);
+        if(risk){
+          const r = closePosition(state.balance, state.position, risk.exitPrice);
+          state.balance = r.balance;
+          lastTrade = {time: Date.now(), symbol: SYMBOL, ...r.logEntry, balanceAfter: state.balance, reason: risk.reason};
+          state.trades.push(lastTrade);
+          state.position = null;
+        }
+      }
+      const ruleResult = engine.decisionFn(i, closes, ind);
+      if(!state.position){
+        if(ruleResult.bias==="LONG" || ruleResult.bias==="SHORT"){
+          const r = openPosition(state.balance, ruleResult.bias==="LONG"?"long":"short", currentPrice);
+          state.balance = r.balance; state.position = r.position;
+          lastTrade = {time: Date.now(), symbol: SYMBOL, ...r.logEntry, balanceAfter: state.balance, reason: ruleResult.reasoning};
+          state.trades.push(lastTrade);
+        }
+      } else if((state.position.side==="long" && ruleResult.bias==="SHORT") || (state.position.side==="short" && ruleResult.bias==="LONG")){
+        const r = closePosition(state.balance, state.position, currentPrice);
+        state.balance = r.balance;
+        lastTrade = {time: Date.now(), symbol: SYMBOL, ...r.logEntry, balanceAfter: state.balance, reason: "trend flipped, closing. " + ruleResult.reasoning};
+        state.trades.push(lastTrade);
+        state.position = null;
+      }
+
+      const badgeLabel = ruleResult.bias==="NONE" ? "HOLD" : ruleResult.bias;
+      const snapshot = {agentLabel: engine.label, allowShort: engine.allowShort, symbol:SYMBOL, price:currentPrice, rsi:ind.rsi[i], macdLine:ind.macd.macdLine[i], macdSignal:ind.macd.signalLine[i], ema50:ind.ema50[i], ema100:ind.ema100[i], action: lastTrade ? `${lastTrade.side} ${SYMBOL}` : `staying ${badgeLabel.toLowerCase()}`};
+      const claudeText = await tryClaudeReasoning(snapshot);
+      const dataNote = lastFetchSynthetic ? "[SIMULATED DATA, live feed unreachable] " : "";
+      const finalReasoning = dataNote + (claudeText ? `[claude] ${claudeText}` : ruleResult.reasoning);
+
+      state.lastDecision = badgeLabel; state.lastReasoning = finalReasoning; state.lastUpdated = Date.now();
+      await saveState(key, state);
+
+      renderDecision(key, badgeLabel, finalReasoning, claudeText?"claude":"rule");
+      renderStats(key, state);
+      renderLog(key, state.trades);
+      refreshPortfolio(); refreshHome();
+    }catch(e){ console.error(e); }
+  }
+
+  function startLiveFor(key){
+    $(key,"liveBtn").textContent = "Stop Live Agent";
+    $(key,"liveBtn").classList.add("on");
+    liveCycleFor(key);
+    liveTimers[key] = setInterval(()=>liveCycleFor(key), CONFIG.LIVE_INTERVAL_MS);
+  }
+  function stopLiveFor(key){
+    $(key,"liveBtn").textContent = "Start Live Agent";
+    $(key,"liveBtn").classList.remove("on");
+    clearInterval(liveTimers[key]);
+    liveTimers[key] = null;
+  }
+
+  // ---------- HOME / PORTFOLIO AGGREGATION ----------
+  function pct(balance){ return ((balance-CONFIG.STARTING_BALANCE)/CONFIG.STARTING_BALANCE)*100; }
+  function setRet(el, value){
+    el.textContent = (value>=0?"+":"") + value.toFixed(2) + "%";
+    el.className = "ret " + (value>=0?"up":"down");
+  }
+
+  async function refreshHome(){
+    const spot = await loadState("spot"), futures = await loadState("futures");
+    const total = spot.balance + futures.balance;
+    $("home","totalBalance").textContent = fmtMoney(total);
+    setRet($("home","totalReturn"), ((total-CONFIG.STARTING_BALANCE*2)/(CONFIG.STARTING_BALANCE*2))*100);
+    $("home","spotBalance").textContent = fmtMoney(spot.balance);
+    setRet($("home","spotReturn"), pct(spot.balance));
+    $("home","futuresBalance").textContent = fmtMoney(futures.balance);
+    setRet($("home","futuresReturn"), pct(futures.balance));
+  }
+
+  async function refreshPortfolio(){
+    const spot = await loadState("spot"), futures = await loadState("futures");
+    const total = spot.balance + futures.balance;
+    $("pf","totalBalance").textContent = fmtMoney(total);
+    setRet($("pf","totalReturn"), ((total-CONFIG.STARTING_BALANCE*2)/(CONFIG.STARTING_BALANCE*2))*100);
+    $("pf","spotBalance").textContent = fmtMoney(spot.balance);
+    setRet($("pf","spotReturn"), pct(spot.balance));
+    $("pf","futuresBalance").textContent = fmtMoney(futures.balance);
+    setRet($("pf","futuresReturn"), pct(futures.balance));
+
+    const closingTrades = [...spot.trades, ...futures.trades].filter(t=>t.side==="SELL"||t.side==="COVER");
+    const wins = closingTrades.filter(t=>t.change>0).length;
+    $("pf","winrate").textContent = closingTrades.length ? Math.round((wins/closingTrades.length)*100)+"%" : "—";
+    $("pf","tradesCount").textContent = spot.trades.length + futures.trades.length;
+
+    // combined equity sparkline
+    const events = [
+      ...spot.trades.map(t=>({time:t.time, agent:"spot", balanceAfter:t.balanceAfter})),
+      ...futures.trades.map(t=>({time:t.time, agent:"futures", balanceAfter:t.balanceAfter}))
+    ].sort((a,b)=>a.time-b.time);
+    let spotBal = CONFIG.STARTING_BALANCE, futuresBal = CONFIG.STARTING_BALANCE;
+    const series = [spotBal+futuresBal];
+    events.forEach(e=>{
+      if(e.agent==="spot") spotBal = e.balanceAfter; else futuresBal = e.balanceAfter;
+      series.push(spotBal+futuresBal);
+    });
+    drawSparkline($("pf","sparkline"), series);
+
+    // combined trade log
+    const merged = [
+      ...spot.trades.map(t=>({...t, agent:"Spot"})),
+      ...futures.trades.map(t=>({...t, agent:"Futures"}))
+    ].sort((a,b)=>b.time-a.time).slice(0,200);
+    const body = $("pf","logBody");
+    body.innerHTML = "";
+    $("pf","emptyLog").style.display = merged.length ? "none" : "block";
+    merged.forEach(t=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${fmtTime(t.time)}</td><td><span class="agent-chip">${t.agent}</span></td><td class="side-${t.side}">${t.side}</td><td>${Number(t.price).toFixed(2)}</td>
+        <td style="color:${t.change>=0?'var(--green)':'var(--red)'}">${t.change>=0?'+':''}${Number(t.change).toFixed(2)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- TAB NAV ----------
+  function showTab(tab){
+    document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
+    document.getElementById("tab-"+tab).classList.add("active");
+    document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active", n.dataset.tab===tab));
+    if(tab==="home") refreshHome();
+    if(tab==="portfolio") refreshPortfolio();
+    window.scrollTo(0,0);
+  }
+
+  // ---------- TICKER (shared across Spot/Futures headers) ----------
+  async function refreshTicker(){
+    try{
+      const t = await fetchTicker(SYMBOL);
+      if(!t) return;
+      const price = Number(t.lastPr).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+      const chg = Number(t.change24h)*100;
+      const chgText = (chg>=0?"+":"")+chg.toFixed(2)+"% 24h";
+      ["spot","futures"].forEach(key=>{
+        $(key,"livePrice").textContent = price;
+        const chgEl = $(key,"liveChg");
+        chgEl.textContent = chgText + (lastFetchSynthetic ? " (simulated)" : "");
+        chgEl.className = "c " + (chg>=0?"up":"down");
+        $(key,"connDot").style.background = lastFetchSynthetic ? "var(--muted)" : "var(--green)";
+      });
+    }catch(e){
+      ["spot","futures"].forEach(key=> $(key,"connDot").style.background = "var(--red)");
+    }
+  }
+
+  // ---------- INIT ----------
+  async function initEngine(key){
+    const state = await loadState(key);
+    renderStats(key, state);
+    renderLog(key, state.trades);
+    if(state.lastDecision) renderDecision(key, state.lastDecision, state.lastReasoning, "rule");
+    $(key,"backtestBtn").addEventListener("click", ()=>handleBacktestFor(key));
+    $(key,"liveBtn").addEventListener("click", ()=> liveTimers[key] ? stopLiveFor(key) : startLiveFor(key));
+    $(key,"resetBtn").addEventListener("click", async ()=>{
+      if(liveTimers[key]) stopLiveFor(key);
+      const fresh = defaultState();
+      await saveState(key, fresh);
+      renderStats(key, fresh);
+      renderLog(key, fresh.trades);
+      renderDecision(key, "HOLD", "Agent reset. Run a backtest or start the live loop to begin.", "rule");
+      refreshPortfolio(); refreshHome();
+    });
+    $(key,"exportBtn").addEventListener("click", async ()=>{
+      const s = await loadState(key);
+      exportTradesCSV(s.trades, SYMBOL, key);
+    });
+  }
+
+  async function init(){
+    document.querySelectorAll(".nav-item").forEach(btn=>{
+      btn.addEventListener("click", ()=>showTab(btn.dataset.tab));
+    });
+    document.getElementById("homeGithubLink").href = "https://github.com/shefkhen01/axis-trading-agent";
+    document.getElementById("pf-exportBtn").addEventListener("click", async ()=>{
+      const spot = await loadState("spot"), futures = await loadState("futures");
+      exportCombinedCSV(spot.trades, futures.trades);
+    });
+
+    await initEngine("spot");
+    await initEngine("futures");
+    await refreshHome();
+
+    refreshTicker();
+    setInterval(refreshTicker, 15000);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

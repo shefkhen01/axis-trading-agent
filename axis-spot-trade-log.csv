@@ -1,0 +1,3 @@
+timestamp,trading_pair,direction,price,quantity,account_balance_change,account_balance_after,reason
+2026-06-12T17:00:00.000Z,BTCUSDT,BUY,63865.00,0.03128474,-2000.00,8000.00,"[rule-engine] RSI 56.6 neutral | MACD bullish cross | EMA50>EMA100 macro uptrend → momentum 1, bias: LONG"
+2026-06-23T08:00:00.000Z,BTCUSDT,SELL,61949.05,0.03128474,-61.88,9938.12,"stop-loss hit"
